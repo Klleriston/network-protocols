@@ -100,7 +100,7 @@ O cliente abre o prompt `netlab>`.
 | `help` | mostra a ajuda |
 | `quit` | encerra o cliente |
 
-Ctrl+C durante um `run` aborta o experimento; Ctrl+C com nada rodando encerra o cliente. Parâmetros desconhecidos em `run` são rejeitados (um erro de digitação não cai silenciosamente no padrão).
+Ctrl+C durante um `run` aborta o experimento; Ctrl+C com nada rodando encerra o cliente. Um segundo Ctrl+C enquanto a interrupção ainda está em andamento (o experimento não terminou de parar) também encerra o cliente. Parâmetros desconhecidos em `run` são rejeitados (um erro de digitação não cai silenciosamente no padrão).
 
 ### Experimentos
 
