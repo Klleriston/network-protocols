@@ -49,7 +49,13 @@ public final class TcpEchoServer implements AutoCloseable {
                 Thread.ofVirtual().name("tcp-echo-conn").start(() -> handle(s));
             } catch (IOException e) {
                 if (closed) return;
-                log.accept("erro ao aceitar conexão: " + e.getMessage());
+                String msg = e.getMessage();
+                if (msg != null && isPeerAbort(msg.toLowerCase())) {
+                    // Windows: o cliente abortou (RST) antes de o accept() devolver o socket
+                    log.accept("conexão resetada (RST) pelo cliente antes de ser aceita");
+                } else {
+                    log.accept("erro ao aceitar conexão: " + msg);
+                }
             }
         }
     }
