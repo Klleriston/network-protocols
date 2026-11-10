@@ -160,10 +160,11 @@ class DashboardServerTest {
     }
 
     @Test
-    void doesNotForwardPacketSentOrEchoed() throws Exception {
+    void doesNotForwardPacketSentEchoedOrLate() throws Exception {
         try (SseClient c = new SseClient()) {
             bus.publish(new Events.PacketSent(1, Protocol.UDP, 1, 64));
             bus.publish(new Events.PacketEchoed(2, Protocol.UDP, 1, 1000, 64));
+            bus.publish(new Events.PacketLate(2, Protocol.UDP, 1));
             bus.publish(new Events.PacketLost(3, Protocol.UDP, 2));
             assertEquals("PacketLost", c.next().event());
         }

@@ -201,7 +201,10 @@ public final class DashboardServer implements AutoCloseable {
         }
 
         private void onEvent(Event e) {
-            if (e instanceof Events.PacketSent || e instanceof Events.PacketEchoed) return;
+            // eventos por pacote já entram nos contadores do MetricsSnapshot; PacketLost/Reordered seguem (com limite)
+            if (e instanceof Events.PacketSent || e instanceof Events.PacketEchoed || e instanceof Events.PacketLate) {
+                return;
+            }
             long suppressed = limiter.takeSuppressed();
             StringBuilder msg = new StringBuilder();
             if (suppressed > 0) {
