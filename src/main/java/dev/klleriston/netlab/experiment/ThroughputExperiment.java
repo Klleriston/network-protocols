@@ -5,6 +5,7 @@ import dev.klleriston.netlab.wire.TestMessage;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
@@ -52,6 +53,7 @@ public final class ThroughputExperiment implements Experiment {
     /** Escreve sem ritmo até o prazo enquanto outra thread conta os echos; devolve a vazão ecoada em Mbit/s. */
     private static double runTcp(ExperimentContext ctx, long phaseNanos, int size) throws Exception {
         AtomicLong echoed = new AtomicLong();
+        AtomicBoolean readerDead = new AtomicBoolean();
         try (TcpEchoSession session = TcpEchoSession.connect(ctx, true)) {
             Thread reader = Thread.ofVirtual().name("throughput-tcp-reader").start(() -> {
                 try {
@@ -61,18 +63,24 @@ public final class ThroughputExperiment implements Experiment {
                     }
                 } catch (IOException e) {
                     // fechada pelo fim da fase, pelo stop, ou quebrada (evento já publicado)
+                } finally {
+                    readerDead.set(true);
                 }
             });
             long start = System.nanoTime();
             long deadline = start + phaseNanos;
             long sent = 0;
             try {
-                while (!ctx.cancelled() && System.nanoTime() < deadline) {
+                while (!ctx.cancelled() && !readerDead.get() && System.nanoTime() < deadline) {
                     session.send(TestMessage.of(sent + 1, ctx.now(), size));
                     sent++;
                 }
             } catch (IOException e) {
-                if (ctx.cancelled()) throw e;
+                if (!ctx.cancelled()) {
+                    session.close();
+                    reader.join();
+                    throw e; // conexão quebrada fora de um stop: o experimento falha
+                }
             }
             long drainDeadline = System.nanoTime() + TCP_DRAIN_NANOS;
             while (!ctx.cancelled() && echoed.get() < sent && reader.isAlive() && System.nanoTime() < drainDeadline) {
@@ -92,26 +100,29 @@ public final class ThroughputExperiment implements Experiment {
             udp.start();
             double nanosPerPacket = size * 8.0 * 1e9 / rate;
             long sent = 0;
-            long failed = 0;
             long start = System.nanoTime();
-            while (!ctx.cancelled()) {
+            boolean last = false;
+            while (!ctx.cancelled() && !last) {
                 long elapsed = System.nanoTime() - start;
-                if (elapsed >= phaseNanos) break;
+                if (elapsed >= phaseNanos) {
+                    elapsed = phaseNanos; // último lote: fecha a conta no prazo
+                    last = true;
+                }
                 long due = (long) (elapsed / nanosPerPacket) - sent;
                 for (long i = 0; i < due && !ctx.cancelled(); i++) {
                     try {
                         udp.send(++sent, size);
                     } catch (IOException e) {
-                        failed++; // ex.: sem espaço de buffer no SO: conta como enviado e perdido
+                        // ex.: sem espaço de buffer no SO: segue pendente e a varredura o declara perdido
                     }
                 }
-                LockSupport.parkNanos(BATCH_INTERVAL_NANOS);
+                if (!last) LockSupport.parkNanos(BATCH_INTERVAL_NANOS);
             }
             long sendNanos = Math.max(System.nanoTime() - start, 1);
             if (ctx.cancelled()) return new double[] {0, 0};
             udp.awaitDrained(drainWait(ctx.impairment()));
             double delivered = udp.echoed() * (double) size * 8 / (sendNanos / 1e9) / 1e6;
-            double loss = sent == 0 ? 0 : (udp.lost() + failed) * 100.0 / sent;
+            double loss = sent == 0 ? 0 : udp.lost() * 100.0 / sent;
             return new double[] {delivered, loss};
         }
     }

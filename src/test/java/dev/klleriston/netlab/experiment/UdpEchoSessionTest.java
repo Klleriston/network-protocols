@@ -120,4 +120,28 @@ class UdpEchoSessionTest {
         s.close();
         s.close();
     }
+
+    @Test
+    void failedSendIsDeclaredLostAndRethrown() throws Exception {
+        ctx = new ExperimentContext(lab.target(), lab.bus(), System::nanoTime, () -> ImpairmentProfile.NONE,
+                new Random(42), Map.of());
+        java.net.DatagramSocket failing = new java.net.DatagramSocket() {
+            @Override
+            public void send(java.net.DatagramPacket p) throws IOException {
+                throw new IOException("No buffer space available");
+            }
+        };
+        failing.connect(lab.target().host(), lab.target().udpPort());
+        ctx.track(failing);
+        try (UdpEchoSession s = new UdpEchoSession(ctx, ctx.track(new dev.klleriston.netlab.impair.ImpairedDatagramSocket(
+                failing, () -> ImpairmentProfile.NONE, new dev.klleriston.netlab.impair.ImpairmentEngine(new Random(1)))),
+                Duration.ofMillis(200))) {
+            s.start();
+            assertThrows(IOException.class, () -> s.send(1, 64));
+            assertTrue(s.awaitDrained(WAIT));
+            assertEquals(1, s.lost());
+        }
+        await("PacketLost UDP", () -> countEvents(e -> e instanceof Events.PacketLost p
+                && p.protocol() == Protocol.UDP), 1, WAIT);
+    }
 }

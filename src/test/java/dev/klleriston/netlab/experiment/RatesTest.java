@@ -22,7 +22,7 @@ class RatesTest {
 
     @Test
     void rejectsGarbage() {
-        for (String bad : new String[] {"rápido", "", "mbps", "-5mbps", "0", "0kbps", "1xbps"}) {
+        for (String bad : new String[] {"rápido", "", "mbps", "-5mbps", "0", "0kbps", "1xbps", "0.0004kbps", "1e3", "1e3kbps", "0x10"}) {
             IllegalArgumentException e =
                     assertThrows(IllegalArgumentException.class, () -> Rates.parseBitsPerSecond(bad), bad);
             assertEquals("taxa inválida: " + bad, e.getMessage());
