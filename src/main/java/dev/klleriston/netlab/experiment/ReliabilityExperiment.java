@@ -18,7 +18,8 @@ public final class ReliabilityExperiment implements Experiment {
     private static final int PAYLOAD = 64;
     private static final Duration LOSS_TIMEOUT = Duration.ofSeconds(1);
 
-    private record Result(long delivered, long lost, long reordered) { }
+    /** No TCP nada se perde para a aplicação: o que falta é o que não foi ecoado antes de a conexão acabar. */
+    private record Result(long delivered, long notEchoed, long reordered) { }
 
     @Override
     public String name() {
@@ -44,9 +45,9 @@ public final class ReliabilityExperiment implements Experiment {
             if (ctx.cancelled()) return "cancelado";
             udp.awaitDrained(drainWait(ctx.impairment()));
             return String.format(
-                    "TCP: %d/%d entregues, %d perdidos, %d reordenados | UDP: %d/%d entregues, %d perdidos, "
+                    "TCP: %d/%d entregues, %d não ecoados, %d reordenados | UDP: %d/%d entregues, %d perdidos, "
                             + "%d reordenados, %d tardios",
-                    tcp.delivered(), count, tcp.lost(), tcp.reordered(),
+                    tcp.delivered(), count, tcp.notEchoed(), tcp.reordered(),
                     udp.echoed(), count, udp.lost(), udp.reordered(), udp.late());
         }
     }
@@ -66,7 +67,7 @@ public final class ReliabilityExperiment implements Experiment {
                         else highest = seq;
                     }
                 } catch (IOException e) {
-                    // conexão quebrou (o evento já foi publicado) ou foi fechada pelo stop: o que faltou conta como perdido
+                    // conexão quebrou (o evento já foi publicado) ou foi fechada pelo stop: o que faltou conta como não ecoado
                 }
             });
             long start = System.nanoTime();

@@ -42,7 +42,7 @@ class ReliabilityExperimentTest {
     @Test
     void tcpDeliversAllInOrder() {
         String summary = run(ImpairmentProfile.NONE, Map.of("count", "200", "rate", "1000"));
-        assertTrue(summary.contains("TCP: 200/200 entregues, 0 perdidos, 0 reordenados"), summary);
+        assertTrue(summary.contains("TCP: 200/200 entregues, 0 não ecoados, 0 reordenados"), summary);
         assertTrue(summary.contains("UDP: 200/200 entregues, 0 perdidos"), summary);
     }
 
@@ -55,6 +55,6 @@ class ReliabilityExperimentTest {
     @Test
     void impairmentDoesNotAffectTcp() {
         String summary = run(new ImpairmentProfile(100, 0, 0, 0), Map.of("count", "200", "rate", "1000"));
-        assertTrue(summary.contains("TCP: 200/200 entregues, 0 perdidos, 0 reordenados"), summary);
+        assertTrue(summary.contains("TCP: 200/200 entregues, 0 não ecoados, 0 reordenados"), summary);
     }
 }
