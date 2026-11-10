@@ -54,8 +54,11 @@ class LifecycleExperimentTest {
                 e -> e instanceof Events.ConnectionClosed c && c.graceful(),
                 e -> e instanceof Events.ConnectionEstablished c && c.protocol() == Protocol.TCP,
                 e -> e instanceof Events.ConnectionClosed c && !c.graceful(),
-                e -> e instanceof Events.ConnectionRefused r && r.protocol() == Protocol.TCP
-                        && r.remote().equals("127.0.0.1:" + closed),
+                // porta filtrada por firewall (ex.: Windows Defender no CI) dá timeout em vez de recusa
+                e -> (e instanceof Events.ConnectionRefused r && r.protocol() == Protocol.TCP
+                        && r.remote().equals("127.0.0.1:" + closed))
+                        || (e instanceof Events.ConnectTimeout t && t.protocol() == Protocol.TCP
+                        && t.remote().equals("127.0.0.1:" + closed)),
                 e -> e instanceof Events.PacketEchoed p && p.protocol() == Protocol.UDP,
                 e -> e instanceof Events.UdpExchange x && x.remote().equals(lab.target().udpRemote())
                         && x.rttMicros() >= 0,

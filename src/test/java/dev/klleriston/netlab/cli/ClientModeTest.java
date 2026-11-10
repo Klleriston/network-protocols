@@ -55,7 +55,8 @@ class ClientModeTest {
         assertTrue(out.contains("ImpairmentChanged"), out);
         assertTrue(out.contains("\"lossPercent\":5"), out);
         assertTrue(out.contains("ExperimentStarted"), out);
-        assertTrue(out.contains("ConnectionRefused"), out);
+        // porta filtrada por firewall (ex.: Windows Defender no CI) dá timeout em vez de recusa
+        assertTrue(out.contains("ConnectionRefused") || out.contains("ConnectTimeout"), out);
         assertTrue(out.contains("netlab> "), out);
         assertFalse(out.contains("PacketSent"), out);
         assertFalse(out.contains("MetricsSnapshot"), out);
