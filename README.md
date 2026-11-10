@@ -127,7 +127,7 @@ O `impair` vale apenas para o UDP do cliente e fica ativo até `impair off`. Os 
 | 1 | No Windows: liberar o Java no firewall e rodar `java -jar netlab.jar server`. | O servidor fica escutando em TCP 7000 e UDP 7001. |
 | 2 | No Mac: rodar `java -jar netlab.jar client --target <ip-windows>` e anotar a URL do painel. | O prompt `netlab>` aparece e a linha `Painel: http://<ip>:8080` é impressa. |
 | 3 | No iPhone: abrir a URL no Safari. | O painel carrega e mostra o estado da conexão com o servidor. |
-| 4 | `run lifecycle` | A linha do tempo mostra handshake, FIN, RST, recusa e o UDP sem handshake; o console do Windows mostra o encerramento gracioso e o reset vistos pelo servidor. |
+| 4 | `run lifecycle` | A linha do tempo mostra handshake, FIN, RST, a porta fechada e o UDP sem handshake; o console do Windows mostra o encerramento gracioso e o reset vistos pelo servidor. Com o Firewall do Windows ativo, a porta 7999 costuma aparecer como **tempo esgotado** (ConnectTimeout após 3 s, e silêncio no UDP) em vez de recusa: veja "Porta fechada versus porta filtrada" abaixo. |
 | 5 | `impair preset=wifi-ruim` e `run reliability` | TCP com 0 perdas; UDP com perda em torno de 10% (5% em cada sentido) e reordenações. |
 | 6 | `run latency nagle=on` e depois `nagle=off` | Diferença visível no RTT do TCP. |
 | 7 | `impair off` e `run throughput udp-rate=500mbps` | Perda UDP crescendo acima da capacidade; TCP se ajustando. |
@@ -139,6 +139,15 @@ O `impair` vale apenas para o UDP do cliente e fica ativo até `impair off`. Os 
 **FIN versus RST.** Um fechamento normal envia FIN: o servidor lê fim de stream (EOF) e encerra graciosamente. Com `setSoLinger(true, 0)` o `close()` aborta a conexão com RST: o servidor vê "connection reset" em vez de EOF. As duas formas aparecem de modo diferente no console do servidor.
 
 **Porta fechada.** No TCP, o SO responde com RST e o `connect()` falha na hora ("conexão recusada"). No UDP não há resposta garantida: ou há silêncio (timeout), ou chega um ICMP port unreachable, que um `DatagramSocket` conectado transforma em `PortUnreachableException`.
+
+**Porta fechada versus porta filtrada.** Uma porta *fechada* responde: o SO devolve RST ao SYN e a recusa é imediata. Uma porta *filtrada* não responde: o firewall descarta o SYN em silêncio, o cliente retransmite até desistir e o `connect()` termina em `ConnectTimeout` após 3 s; no UDP, o firewall também engole o datagrama (nada de ICMP), e o resultado é silêncio. O Firewall do Windows descarta por padrão o tráfego para portas sem regra, por isso a porta 7999 do `lifecycle` normalmente aparece como filtrada. Para ver uma recusa de verdade, crie temporariamente uma regra que permita a 7999 (sem nada escutando nela, o Windows passa a responder com RST) e remova-a depois:
+
+```powershell
+New-NetFirewallRule -DisplayName "netlab 7999 (temporária)" -Direction Inbound -Protocol TCP -LocalPort 7999 -Profile Private -Action Allow
+Remove-NetFirewallRule -DisplayName "netlab 7999 (temporária)"
+```
+
+Outra opção é rodar o `server` no próprio Mac (com portas alternativas, veja o aviso da porta 7000) e o `client` com `--target 127.0.0.1`: sem firewall no caminho, a 7999 é recusada na hora.
 
 **Nagle e ACK atrasado.** O algoritmo de Nagle segura um segmento pequeno enquanto houver dado enviado sem ACK. No padrão write-write-read (duas escritas pequenas seguidas de uma leitura), a segunda escrita espera o ACK da primeira, e o receptor pode atrasar esse ACK (ACK atrasado, algumas dezenas de ms ou mais). O resultado é um RTT bem maior com `nagle=on` do que com `nagle=off` (`TCP_NODELAY`). Quanto o efeito aparece depende do sistema operacional.
 
