@@ -93,7 +93,7 @@ O cliente abre o prompt `netlab>`.
 | Comando | Efeito |
 |---|---|
 | `run <experimento> [chave=valor ...]` | inicia um experimento (um por vez) |
-| `impair loss=<0-100> delay=<ms> jitter=<ms> reorder=<0-100>` | piora o UDP do cliente; campos ausentes valem 0 |
+| `impair loss=<0-100> delay=<ms> jitter=<ms> reorder=<0-100>` | piora o UDP do cliente; campos ausentes valem 0; valores por sentido |
 | `impair preset=<wifi-ruim\|3g>` | aplica um perfil pronto |
 | `impair off` | desliga o impair |
 | `stop` | interrompe o experimento em andamento |
@@ -118,7 +118,7 @@ Ctrl+C durante um `run` aborta o experimento; Ctrl+C com nada rodando encerra o 
 | `wifi-ruim` | 5% | 30 ms | 20 ms | 3% |
 | `3g` | 2% | 150 ms | 60 ms | 1% |
 
-O `impair` vale apenas para o UDP do cliente (envio e recepção) e fica ativo até `impair off`. Não há simulação de perda no TCP; o painel mostra o zero de perdas do TCP como contraste.
+O `impair` vale apenas para o UDP do cliente e fica ativo até `impair off`. Os valores são **por sentido**: perda, atraso e reordenação são aplicados uma vez no envio e outra na recepção, então numa ida e volta o efeito é cerca de 2× (com `loss=5`, um echo se perde em ~10% das vezes; com `delay=30`, o RTT sobe ~60 ms). Não há simulação de perda no TCP; o painel mostra o zero de perdas do TCP como contraste.
 
 ## Roteiro de aceitação manual
 
@@ -128,7 +128,7 @@ O `impair` vale apenas para o UDP do cliente (envio e recepção) e fica ativo a
 | 2 | No Mac: rodar `java -jar netlab.jar client --target <ip-windows>` e anotar a URL do painel. | O prompt `netlab>` aparece e a linha `Painel: http://<ip>:8080` é impressa. |
 | 3 | No iPhone: abrir a URL no Safari. | O painel carrega e mostra o estado da conexão com o servidor. |
 | 4 | `run lifecycle` | A linha do tempo mostra handshake, FIN, RST, recusa e o UDP sem handshake; o console do Windows mostra o encerramento gracioso e o reset vistos pelo servidor. |
-| 5 | `impair preset=wifi-ruim` e `run reliability` | TCP com 0 perdas; UDP com perda em torno de 5% e reordenações. |
+| 5 | `impair preset=wifi-ruim` e `run reliability` | TCP com 0 perdas; UDP com perda em torno de 10% (5% em cada sentido) e reordenações. |
 | 6 | `run latency nagle=on` e depois `nagle=off` | Diferença visível no RTT do TCP. |
 | 7 | `impair off` e `run throughput udp-rate=500mbps` | Perda UDP crescendo acima da capacidade; TCP se ajustando. |
 

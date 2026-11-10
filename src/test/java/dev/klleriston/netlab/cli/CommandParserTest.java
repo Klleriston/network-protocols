@@ -104,4 +104,9 @@ class CommandParserTest {
             assertTrue(help.contains(expected), help);
         }
     }
+
+    @Test
+    void helpSaysImpairValuesArePerDirection() {
+        assertTrue(CommandParser.helpText().contains("valores por sentido"), CommandParser.helpText());
+    }
 }
