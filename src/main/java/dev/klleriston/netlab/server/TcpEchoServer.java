@@ -42,6 +42,10 @@ public final class TcpEchoServer implements AutoCloseable {
             try {
                 Socket s = ss.accept();
                 open.add(s);
+                if (closed) {
+                    s.close();
+                    return;
+                }
                 Thread.ofVirtual().name("tcp-echo-conn").start(() -> handle(s));
             } catch (IOException e) {
                 if (closed) return;
@@ -52,8 +56,8 @@ public final class TcpEchoServer implements AutoCloseable {
 
     private void handle(Socket s) {
         String remote = String.valueOf(s.getRemoteSocketAddress());
-        log.accept("conexão aceita de " + remote);
         try (s) {
+            log.accept("conexão aceita de " + remote);
             try {
                 s.setTcpNoDelay(true);
             } catch (SocketException ignored) {
@@ -104,6 +108,5 @@ public final class TcpEchoServer implements AutoCloseable {
             } catch (IOException ignored) {
             }
         }
-        open.clear();
     }
 }
