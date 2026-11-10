@@ -25,11 +25,13 @@ public final class LatencyExperiment implements Experiment {
         }
 
         RttStats tcpStats = new RttStats();
+        boolean noDelay;
         try (TcpEchoSession tcp = TcpEchoSession.connect(ctx, nagle.equals("off"))) {
             for (int i = 0; i < samples && !ctx.cancelled(); i++) {
                 tcpStats.add(tcp.roundTrip(i + 1L, size));
             }
             if (ctx.cancelled()) return "cancelado";
+            noDelay = tcp.tcpNoDelay(); // estado real do socket, não o parâmetro
             tcp.closeGraceful();
         }
 
@@ -47,7 +49,7 @@ public final class LatencyExperiment implements Experiment {
         }
 
         return String.format("TCP: avg %d µs, p95 %d µs | UDP: avg %d µs, p95 %d µs, perdidos %d | nagle=%s",
-                tcpStats.avgMicros(), tcpStats.p95Micros(), udpStats.avgMicros(), udpStats.p95Micros(), lost, nagle);
+                tcpStats.avgMicros(), tcpStats.p95Micros(), udpStats.avgMicros(), udpStats.p95Micros(), lost, noDelay ? "off" : "on");
     }
 
     private static int positive(int value, String name) {
