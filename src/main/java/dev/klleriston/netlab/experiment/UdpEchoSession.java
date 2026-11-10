@@ -79,7 +79,7 @@ public final class UdpEchoSession implements AutoCloseable {
             // ICMP de um envio anterior: o pacote fica pendente e será declarado perdido
             reportPortUnreachable();
         } catch (IOException e) {
-            pending.remove(seq);
+            // falha do SO ao enviar: o pacote segue pendente e será declarado perdido pela varredura
             throw e;
         }
     }

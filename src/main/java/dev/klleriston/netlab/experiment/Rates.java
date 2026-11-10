@@ -24,9 +24,10 @@ public final class Rates {
             factor = 1_000_000_000L;
         }
         String number = factor == 1 ? s : s.substring(0, s.length() - 4).trim();
+        if (!number.matches("\\d+(\\.\\d+)?")) throw invalid(text);
         try {
             BigDecimal bps = new BigDecimal(number).multiply(BigDecimal.valueOf(factor));
-            if (bps.signum() <= 0 || bps.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0) throw invalid(text);
+            if (bps.compareTo(BigDecimal.ONE) < 0 || bps.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0) throw invalid(text);
             return bps.longValue();
         } catch (NumberFormatException e) {
             throw invalid(text);
