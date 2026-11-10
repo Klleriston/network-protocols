@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 
 /** Conexão TCP com o servidor de echo que publica cada passo do seu ciclo de vida. */
 public final class TcpEchoSession implements AutoCloseable {
@@ -79,7 +80,11 @@ public final class TcpEchoSession implements AutoCloseable {
         ctx.bus().publish(new Events.PacketSent(ctx.now(), Protocol.TCP, m.seq(), frame.length));
     }
 
-    /** Lê o próximo echo e publica {@code PacketEchoed}; FIN e RST do par viram eventos e são relançados. */
+    /**
+     * Lê o próximo echo e publica {@code PacketEchoed}; FIN e RST do par viram eventos e são relançados.
+     * O timeout de leitura vira um {@link IOException} comum: a conexão já existia, então não é caso de
+     * servidor inalcançável (nem de dica de firewall).
+     */
     public TestMessage receive() throws IOException {
         byte[] frame;
         try {
@@ -88,6 +93,8 @@ public final class TcpEchoSession implements AutoCloseable {
             markClosed();
             ctx.bus().publish(new Events.ConnectionClosed(ctx.now(), Protocol.TCP, remote, true));
             throw e;
+        } catch (SocketTimeoutException e) {
+            throw new IOException("tempo de leitura esgotado (" + READ_TIMEOUT_MS / 1000 + " s) em " + remote, e);
         } catch (SocketException e) {
             publishResetIfPeerAbort(e);
             throw e;
