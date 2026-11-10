@@ -6,8 +6,8 @@ import java.io.PrintStream;
 import java.util.function.Consumer;
 
 /**
- * Imprime no terminal os eventos de ciclo de vida, de experimento, de impair e de porta UDP inalcançável,
- * uma linha cada; ignora eventos de pacote e de métricas. Escreve sob o lock do PrintStream, que o
+ * Imprime no terminal os eventos de ciclo de vida, de experimento, de impair, de troca UDP do roteiro
+ * lifecycle e de porta UDP inalcançável, uma linha cada; ignora eventos de pacote e de métricas. Escreve sob o lock do PrintStream, que o
  * prompt também usa, para que linhas de threads diferentes não se misturem.
  */
 public final class ConsolePrinter implements Consumer<Event> {
@@ -46,6 +46,7 @@ public final class ConsolePrinter implements Consumer<Event> {
             case Events.ConnectionRefused x -> true;
             case Events.ConnectTimeout x -> true;
             case Events.UdpPortUnreachable x -> true;
+            case Events.UdpExchange x -> true;
             case Events.ImpairmentChanged x -> true;
             case Events.PacketSent x -> false;
             case Events.PacketEchoed x -> false;

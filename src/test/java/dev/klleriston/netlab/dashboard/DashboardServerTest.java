@@ -170,6 +170,15 @@ class DashboardServerTest {
     }
 
     @Test
+    void forwardsUdpExchange() throws Exception {
+        try (SseClient c = new SseClient()) {
+            Events.UdpExchange x = new Events.UdpExchange(4, "127.0.0.1:7001", 250);
+            bus.publish(x);
+            assertEquals(new Sse("UdpExchange", x.toJson()), c.next());
+        }
+    }
+
+    @Test
     void newConnectionReceivesLatestSnapshotsFirst() throws Exception {
         Events.MetricsSnapshot tcp = snapshot(Protocol.TCP, 11);
         Events.MetricsSnapshot udp = snapshot(Protocol.UDP, 22);

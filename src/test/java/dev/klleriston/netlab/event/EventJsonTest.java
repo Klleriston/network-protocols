@@ -35,6 +35,14 @@ class EventJsonTest {
     }
 
     @Test
+    void udpExchangeIsUdpWithRemoteAndRtt() {
+        Event e = new Events.UdpExchange(4, "127.0.0.1:7001", 250);
+        assertEquals(Protocol.UDP, e.protocol());
+        assertEquals("{\"type\":\"UdpExchange\",\"timestampNanos\":4,\"protocol\":\"UDP\","
+                + "\"remote\":\"127.0.0.1:7001\",\"rttMicros\":250}", e.toJson());
+    }
+
+    @Test
     void snapshotFormatsLossPercentWithTwoDecimals() {
         String json = new Events.MetricsSnapshot(1, Protocol.TCP, 10, 9, 1, 0, 0, 4.5,
                 1, 2, 3, 4, 5, 6, 7).toJson();
