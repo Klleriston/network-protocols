@@ -73,9 +73,13 @@ final class LoopbackLab implements AutoCloseable {
     /** Primeiro evento do tipo; falha o teste se não chegar a tempo. */
     <T extends Event> T awaitEvent(Class<T> type, Duration timeout) {
         long deadline = System.nanoTime() + timeout.toNanos();
+        int scanned = 0;
         while (true) {
-            for (Event e : events()) {
-                if (type.isInstance(e)) return type.cast(e);
+            synchronized (events) {
+                for (; scanned < events.size(); scanned++) {
+                    Event e = events.get(scanned);
+                    if (type.isInstance(e)) return type.cast(e);
+                }
             }
             if (System.nanoTime() >= deadline) {
                 fail("evento " + type.getSimpleName() + " não chegou em " + timeout.toMillis() + " ms; recebidos: "
