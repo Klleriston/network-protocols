@@ -58,6 +58,15 @@ public final class TcpEchoSession implements AutoCloseable {
         return handshakeMicros;
     }
 
+    /** Estado atual de TCP_NODELAY no socket; false se não for possível ler. */
+    public boolean tcpNoDelay() {
+        try {
+            return socket.getTcpNoDelay();
+        } catch (SocketException e) {
+            return false;
+        }
+    }
+
     /** Envia a mensagem enquadrada e publica {@code PacketSent}. */
     public void send(TestMessage m) throws IOException {
         byte[] frame = MessageCodec.encode(m);
