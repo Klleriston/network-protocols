@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 /**
  * Sessão UDP com o servidor de echo: envia mensagens numeradas e classifica cada echo como ecoado, reordenado ou
@@ -46,6 +47,7 @@ public final class UdpEchoSession implements AutoCloseable {
     private final AtomicLong reordered = new AtomicLong();
     private final AtomicLong late = new AtomicLong();
     private final AtomicBoolean portUnreachableReported = new AtomicBoolean();
+    private volatile LongConsumer echoListener = rtt -> { };
     private volatile boolean closed;
     private Thread receiver;
     private Thread sweeper;
@@ -95,6 +97,11 @@ public final class UdpEchoSession implements AutoCloseable {
             }
         }
         return true;
+    }
+
+    /** Recebe o RTT (nanos) de cada echo classificado como ecoado, antes de ele deixar de estar pendente. */
+    public void onEchoRtt(LongConsumer listener) {
+        this.echoListener = listener;
     }
 
     public long echoed() {
@@ -164,6 +171,7 @@ public final class UdpEchoSession implements AutoCloseable {
                 return; // seq nunca enviado ou echo duplicado: ignorado
             }
             echoed.incrementAndGet();
+            echoListener.accept(now - sentAt);
             ctx.bus().publish(new Events.PacketEchoed(now, Protocol.UDP, seq, now - sentAt, bytes));
             if (seq < highestSeen) {
                 reordered.incrementAndGet();
