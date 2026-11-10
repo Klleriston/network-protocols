@@ -73,6 +73,8 @@ public final class ImpairedDatagramSocket implements AutoCloseable {
                 scheduler.schedule(() -> {
                     try {
                         if (!closed) delegate.send(out);
+                    } catch (PortUnreachableException e) {
+                        inbox.offer(new Failure(e));
                     } catch (IOException ignored) {
                         // pacote enviado em segundo plano: erro equivale a perda na rede
                     }

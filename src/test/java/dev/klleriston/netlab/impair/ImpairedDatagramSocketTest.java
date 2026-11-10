@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.PortUnreachableException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
@@ -13,6 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class ImpairedDatagramSocketTest {
     private DatagramSocket peer;
@@ -116,5 +118,48 @@ class ImpairedDatagramSocketTest {
         impaired.receive(in);
         assertEquals(4, in.getLength());
         assertEquals("abcd", new String(in.getData(), 0, 4, StandardCharsets.UTF_8));
+    }
+
+    private ImpairedDatagramSocket toClosedPort() throws Exception {
+        InetAddress lo = InetAddress.getByName("127.0.0.1");
+        int closedPort;
+        try (DatagramSocket tmp = new DatagramSocket(0, lo)) {
+            closedPort = tmp.getLocalPort();
+        }
+        DatagramSocket s = new DatagramSocket(0, lo);
+        s.connect(lo, closedPort);
+        return new ImpairedDatagramSocket(s, profile::get, new ImpairmentEngine(new Random(42)));
+    }
+
+    private void assertUnreachableThenTimeout(ImpairedDatagramSocket sock) throws Exception {
+        sock.setSoTimeout(2000);
+        DatagramPacket in = new DatagramPacket(new byte[16], 16);
+        try {
+            sock.receive(in);
+            fail("esperava PortUnreachableException");
+        } catch (SocketTimeoutException e) {
+            assumeTrue(false, "ICMP port unreachable nao entregue nesta plataforma");
+        } catch (PortUnreachableException expected) {
+            // ok
+        }
+        sock.setSoTimeout(100);
+        assertThrows(SocketTimeoutException.class, () -> sock.receive(in));
+    }
+
+    @Test void portUnreachableIsPassedThroughAndReceiveWorksAfter() throws Exception {
+        try (ImpairedDatagramSocket sock = toClosedPort()) {
+            sock.send(packet("x"));
+            assertUnreachableThenTimeout(sock);
+        }
+    }
+
+    @Test void portUnreachableFromDelayedSendReachesReceive() throws Exception {
+        profile.set(new ImpairmentProfile(0, 50, 0, 0));
+        try (ImpairedDatagramSocket sock = toClosedPort()) {
+            sock.setSoTimeout(1);
+            try { sock.receive(new DatagramPacket(new byte[16], 16)); } catch (SocketTimeoutException ignored) { }
+            sock.send(packet("x"));
+            assertUnreachableThenTimeout(sock);
+        }
     }
 }
