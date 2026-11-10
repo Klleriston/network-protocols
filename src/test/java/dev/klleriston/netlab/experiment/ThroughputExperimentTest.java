@@ -41,6 +41,12 @@ class ThroughputExperimentTest {
     }
 
     @Test
+    void throughputCountsEncodedFrameBytesLikeTheDashboard() {
+        // 1000 frames de (1000 + 20 de cabeçalho) bytes em 1 s = 8,16 Mbit/s
+        assertEquals(8.16, ThroughputExperiment.mbps(1000, 1000, 1_000_000_000L), 1e-9);
+    }
+
+    @Test
     void tcpPhaseRunsForRequestedSeconds() throws Exception {
         ExperimentRunner runner = lab.runner(() -> ImpairmentProfile.NONE);
         long t0 = System.nanoTime();
