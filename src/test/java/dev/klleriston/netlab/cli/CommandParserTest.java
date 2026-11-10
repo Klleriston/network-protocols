@@ -77,4 +77,31 @@ class CommandParserTest {
             assertTrue(e.getMessage().contains("run <experimento>"), e.getMessage());
         }
     }
+
+    @Test
+    void rejectsUnknownRunParam() {
+        CommandException e = assertThrows(CommandException.class, () -> parser.parse("run latency sample=50"));
+        assertTrue(e.getMessage().startsWith("parâmetro desconhecido para latency: sample"), e.getMessage());
+        assertTrue(e.getMessage().contains("samples=200 nagle=off size=64"), e.getMessage());
+        assertThrows(CommandException.class, () -> parser.parse("run lifecycle count=10"));
+    }
+
+    @Test
+    void acceptsEveryDocumentedParam() throws CommandException {
+        assertEquals(new Command.Run("throughput", Map.of("seconds", "1", "udp-rate", "5mbps", "size", "100")),
+                parser.parse("run throughput seconds=1 udp-rate=5mbps size=100"));
+        assertEquals(new Command.Run("reliability", Map.of("count", "5", "rate", "1")),
+                parser.parse("run reliability count=5 rate=1"));
+        assertEquals(new Command.Run("lifecycle", Map.of("closed-port", "1")), parser.parse("run lifecycle closed-port=1"));
+    }
+
+    @Test
+    void helpListsEveryExperimentWithDefaults() {
+        String help = CommandParser.helpText();
+        for (String expected : List.of("lifecycle     closed-port=7999", "reliability   count=1000 rate=200",
+                "latency       samples=200 nagle=off size=64", "throughput    seconds=10 udp-rate=20mbps size=1200",
+                "impair preset=<wifi-ruim|3g>")) {
+            assertTrue(help.contains(expected), help);
+        }
+    }
 }
