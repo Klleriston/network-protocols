@@ -175,7 +175,7 @@ Perfis de `impair`:
 | `wifi-ruim` | 5% | 30 ms | 20 ms | 3% |
 | `3g` | 2% | 150 ms | 60 ms | 1% |
 
-O `impair` se aplica apenas ao UDP do cliente, nos dois sentidos (envio e recepção), e permanece ativo até `impair off`. Cada mudança publica `ImpairmentChanged`.
+O `impair` se aplica apenas ao UDP do cliente, nos dois sentidos (envio e recepção), e permanece ativo até `impair off`. Os valores são por sentido: numa ida e volta o efeito é cerca de 2× (perda de ~10% com `loss=5`). Cada mudança publica `ImpairmentChanged`.
 
 ## 8. Tratamento de erros
 
@@ -250,6 +250,6 @@ GitHub Actions: `mvn verify` em uma matriz `ubuntu-latest`, `macos-latest` e `wi
 2. No Mac: rodar `java -jar netlab.jar client --target <ip-windows>` e anotar a URL do painel.
 3. No iPhone: abrir a URL no Safari.
 4. `run lifecycle` → a linha do tempo mostra handshake, FIN, RST, recusa e o UDP sem handshake; o console do Windows mostra o encerramento gracioso e o reset vistos pelo servidor.
-5. `impair preset=wifi-ruim` e `run reliability` → TCP com 0 perdas; UDP com perda em torno de 5% e reordenações.
+5. `impair preset=wifi-ruim` e `run reliability` → TCP com 0 perdas; UDP com perda em torno de 10% (5% em cada sentido) e reordenações.
 6. `run latency nagle=on` e depois `nagle=off` → diferença visível no RTT do TCP.
 7. `impair off` e `run throughput udp-rate=500mbps` → perda UDP crescendo acima da capacidade; TCP se ajustando.

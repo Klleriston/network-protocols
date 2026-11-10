@@ -206,8 +206,8 @@
 
   function describeImpairment(m) {
     if (!m.lossPercent && !m.delayMs && !m.jitterMs && !m.reorderPercent) return "rede normal";
-    return "rede ruim: perda " + m.lossPercent + "% · atraso " + m.delayMs + "±" + m.jitterMs +
-           " ms · reordenação " + m.reorderPercent + "%";
+    return "rede ruim (por sentido): perda " + m.lossPercent + "% · atraso " + m.delayMs + "±" + m.jitterMs +
+           " ms · reordenação " + m.reorderPercent + "% — ida e volta ≈ 2×";
   }
 
   // tipo -> [função que trata o evento]; cada uma devolve [texto, classe] para a linha do tempo (ou null)

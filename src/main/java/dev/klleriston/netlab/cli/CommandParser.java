@@ -86,7 +86,8 @@ public final class CommandParser {
                 Comandos:
                   run <experimento> [chave=valor ...]   inicia um experimento (um por vez)
                   impair loss=<0-100> delay=<ms> jitter=<ms> reorder=<0-100>
-                                                         piora o UDP do cliente (campos ausentes = 0)
+                                                         piora o UDP do cliente (campos ausentes = 0;
+                                                         valores por sentido: ida e volta ≈ 2×)
                   impair preset=<wifi-ruim|3g>           wifi-ruim: 5% 30ms 20ms 3% | 3g: 2% 150ms 60ms 1%
                   impair off                             desliga o impair
                   stop                                   interrompe o experimento em andamento (ou Ctrl+C)
