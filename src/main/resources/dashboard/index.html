@@ -1,1 +1,274 @@
-<!doctype html><title>netlab</title>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>netlab</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1b1f24; --muted: #5d6673; --border: #d9dde3;
+    --tcp: #1d6fdc; --udp: #c2410c;
+    --ok: #1a7f37; --fin: #1d6fdc; --warn: #b45309; --bad: #c62828; --info: #5d6673;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #1a1f26; --text: #e8ebef; --muted: #98a2b0; --border: #2c333d;
+      --tcp: #5aa9ff; --udp: #ffa657;
+      --ok: #3fb950; --fin: #5aa9ff; --warn: #f0a030; --bad: #ff6b6b; --info: #98a2b0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+         font: 15px/1.4 -apple-system, system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+          padding: 12px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .muted { color: var(--muted); font-size: 13px; }
+  #conn { font-size: 13px; }
+  #conn.ok { color: var(--ok); } #conn.bad { color: var(--warn); }
+  #state { font-weight: 600; overflow-wrap: anywhere; }
+  #state.running { color: var(--fin); } #state.finished { color: var(--ok); }
+  #state.aborted { color: var(--warn); } #state.failed { color: var(--bad); }
+  #detail { overflow-wrap: anywhere; }
+  .cards { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 600px) { .cards { grid-template-columns: 1fr 1fr; } }
+  .cards .card { margin-bottom: 0; }
+  #card-tcp h2 { color: var(--tcp); } #card-udp h2 { color: var(--udp); }
+  dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+  dt { color: var(--muted); } dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  #chart-wrap { margin-top: 12px; }
+  canvas { width: 100%; height: 200px; display: block; }
+  .legend { display: flex; gap: 16px; font-size: 13px; }
+  .legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  #timeline { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow-y: auto; }
+  #timeline li { padding: 4px 0 4px 8px; border-left: 4px solid var(--info); margin-bottom: 3px;
+                 font-size: 13px; overflow-wrap: anywhere; }
+  #timeline .t { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+  li.ok { border-color: var(--ok); } li.fin { border-color: var(--fin); }
+  li.warn { border-color: var(--warn); } li.bad { border-color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <section class="card" id="header">
+    <div class="row"><h1>netlab · TCP vs UDP</h1><span id="conn" class="bad">conectando…</span></div>
+    <div class="row"><span id="exp" class="muted">nenhum experimento ainda</span><span id="state"></span></div>
+    <div id="detail" class="muted"></div>
+    <div id="impairment" class="muted" style="margin-top:6px">rede normal</div>
+  </section>
+
+  <div class="cards" id="cards">
+    <section class="card" id="card-tcp"><h2>TCP</h2><dl></dl></section>
+    <section class="card" id="card-udp"><h2>UDP</h2><dl></dl></section>
+  </div>
+
+  <section class="card" id="chart-wrap">
+    <div class="row"><h2>RTT médio (últimos 120 snapshots)</h2>
+      <span class="legend"><span><i style="background:var(--tcp)"></i>TCP</span><span><i style="background:var(--udp)"></i>UDP</span></span>
+    </div>
+    <canvas id="rtt-chart"></canvas>
+  </section>
+
+  <section class="card">
+    <h2>Linha do tempo</h2>
+    <ul id="timeline"></ul>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var MAX_POINTS = 120, MAX_TIMELINE = 200;
+
+  // ---- formatação ----
+  function fmtMicros(us) { return us >= 1000 ? (us / 1000).toFixed(2) + " ms" : us + " µs"; }
+  function fmtRate(bytesPerSec) {
+    var bits = bytesPerSec * 8;
+    return bits >= 1e6 ? (bits / 1e6).toFixed(2) + " Mbit/s" : (bits / 1e3).toFixed(1) + " kbit/s";
+  }
+
+  // ---- cartões de métricas ----
+  var FIELDS = [
+    ["sent", "enviados", String], ["echoed", "ecoados", String], ["lost", "perdidos", String],
+    ["reordered", "reordenados", String], ["late", "tardios", String],
+    ["lossPercent", "perda", function (v) { return v.toFixed(1) + " %"; }],
+    ["rttMinMicros", "RTT mín", fmtMicros], ["rttAvgMicros", "RTT méd", fmtMicros],
+    ["rttP95Micros", "RTT p95", fmtMicros], ["rttMaxMicros", "RTT máx", fmtMicros],
+    ["jitterMicros", "jitter", fmtMicros], ["throughputBytesPerSec", "vazão", fmtRate],
+    ["droppedEvents", "eventos descartados", String]
+  ];
+  var cells = { TCP: {}, UDP: {} };
+  ["TCP", "UDP"].forEach(function (proto) {
+    var dl = document.querySelector("#card-" + proto.toLowerCase() + " dl");
+    FIELDS.forEach(function (f) {
+      var dt = document.createElement("dt"), dd = document.createElement("dd");
+      dt.textContent = f[1]; dd.textContent = "–";
+      dl.appendChild(dt); dl.appendChild(dd);
+      cells[proto][f[0]] = { dt: dt, dd: dd };
+    });
+    cells[proto].droppedEvents.dt.hidden = cells[proto].droppedEvents.dd.hidden = true;
+  });
+
+  var history = { TCP: [], UDP: [] };
+
+  function onSnapshot(m) {
+    var c = cells[m.protocol];
+    if (!c) return;
+    FIELDS.forEach(function (f) { c[f[0]].dd.textContent = f[2](m[f[0]]); });
+    var show = m.droppedEvents > 0;
+    c.droppedEvents.dt.hidden = c.droppedEvents.dd.hidden = !show;
+    var h = history[m.protocol];
+    h.push(m.rttAvgMicros);
+    if (h.length > MAX_POINTS) h.shift();
+    drawChart();
+  }
+
+  // ---- gráfico de RTT ----
+  var canvas = $("rtt-chart");
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function drawChart() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    }
+    var g = canvas.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+
+    var max = 1;
+    ["TCP", "UDP"].forEach(function (p) { history[p].forEach(function (v) { if (v > max) max = v; }); });
+    max *= 1.1;
+    var inMs = max >= 1000, unit = inMs ? "ms" : "µs";
+    var left = 44, right = 6, top = 8, bottom = 16;
+    var pw = w - left - right, ph = h - top - bottom;
+    var muted = cssVar("--muted"), border = cssVar("--border");
+
+    g.font = "11px -apple-system, system-ui, sans-serif";
+    g.textBaseline = "middle"; g.textAlign = "right";
+    for (var i = 0; i <= 4; i++) {
+      var y = top + ph - (ph * i) / 4, val = (max * i) / 4;
+      g.strokeStyle = border; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(left, y); g.lineTo(w - right, y); g.stroke();
+      g.fillStyle = muted;
+      g.fillText((inMs ? (val / 1000).toFixed(1) : Math.round(val)) + "", left - 4, y);
+    }
+    g.textAlign = "left"; g.textBaseline = "alphabetic";
+    g.fillText("RTT (" + unit + ")", left, h - 3);
+
+    [["TCP", "--tcp"], ["UDP", "--udp"]].forEach(function (s) {
+      var d = history[s[0]];
+      if (!d.length) return;
+      g.strokeStyle = cssVar(s[1]); g.lineWidth = 2; g.lineJoin = "round";
+      g.beginPath();
+      d.forEach(function (v, k) {
+        var x = left + (pw * (MAX_POINTS - d.length + k)) / (MAX_POINTS - 1);
+        var yy = top + ph - (v / max) * ph;
+        if (k === 0) g.moveTo(x, yy); else g.lineTo(x, yy);
+      });
+      g.stroke();
+    });
+  }
+  window.addEventListener("resize", drawChart);
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawChart);
+  }
+
+  // ---- linha do tempo ----
+  var t0 = null, timeline = $("timeline");
+
+  function addTimeline(ev, text, cls) {
+    if (t0 === null) t0 = ev.timestampNanos;
+    var rel = (ev.timestampNanos - t0) / 1e9;
+    var li = document.createElement("li");
+    li.className = cls;
+    var t = document.createElement("span");
+    t.className = "t";
+    t.textContent = (rel >= 0 ? "+" : "") + rel.toFixed(3) + " s";
+    li.appendChild(t);
+    li.appendChild(document.createTextNode(text));
+    timeline.insertBefore(li, timeline.firstChild);
+    while (timeline.children.length > MAX_TIMELINE) timeline.removeChild(timeline.lastChild);
+  }
+
+  // ---- cabeçalho / experimento ----
+  function setState(cls, label, detail) {
+    var s = $("state");
+    s.className = cls; s.textContent = label;
+    $("detail").textContent = detail || "";
+  }
+  function setExperiment(name) { $("exp").textContent = "experimento: " + name; }
+
+  function describeImpairment(m) {
+    if (!m.lossPercent && !m.delayMs && !m.jitterMs && !m.reorderPercent) return "rede normal";
+    return "rede ruim: perda " + m.lossPercent + "% · atraso " + m.delayMs + "±" + m.jitterMs +
+           " ms · reordenação " + m.reorderPercent + "%";
+  }
+
+  // tipo -> [função que trata o evento]; cada uma devolve [texto, classe] para a linha do tempo (ou null)
+  var handlers = {
+    MetricsSnapshot: function (m) { onSnapshot(m); return null; },
+    ExperimentStarted: function (m) {
+      t0 = m.timestampNanos;
+      setExperiment(m.name); setState("running", "rodando…", "");
+      return ["experimento iniciado: " + m.name, "ok"];
+    },
+    ExperimentFinished: function (m) {
+      setExperiment(m.name); setState("finished", "concluído", m.summary);
+      return ["experimento concluído: " + m.name + " — " + m.summary, "ok"];
+    },
+    ExperimentAborted: function (m) {
+      setExperiment(m.name); setState("aborted", "abortado", "");
+      return ["experimento abortado: " + m.name, "warn"];
+    },
+    ExperimentFailed: function (m) {
+      setExperiment(m.name); setState("failed", "falhou", m.reason);
+      return ["experimento falhou: " + m.name + " — " + m.reason, "bad"];
+    },
+    ImpairmentChanged: function (m) {
+      var d = describeImpairment(m);
+      $("impairment").textContent = d;
+      return ["rede alterada: " + d, "info"];
+    },
+    ConnectionEstablished: function (m) {
+      return [m.protocol + " conexão estabelecida com " + m.remote + " (handshake " + fmtMicros(m.handshakeMicros) + ")", "ok"];
+    },
+    ConnectionClosed: function (m) {
+      return [m.protocol + " conexão encerrada com " + m.remote + (m.graceful ? " (FIN, normal)" : " (abrupta)"),
+              m.graceful ? "fin" : "warn"];
+    },
+    ConnectionReset: function (m) { return [m.protocol + " conexão resetada (RST) por " + m.remote, "warn"]; },
+    ConnectionRefused: function (m) { return [m.protocol + " conexão recusada por " + m.remote, "bad"]; },
+    ConnectTimeout: function (m) { return [m.protocol + " tempo esgotado ao conectar em " + m.remote, "bad"]; },
+    UdpPortUnreachable: function (m) { return ["UDP porta inalcançável em " + m.remote + " (ICMP)", "bad"]; },
+    PacketLost: function (m) { return [m.protocol + " pacote perdido #" + m.seq, "warn"]; },
+    PacketReordered: function (m) {
+      return [m.protocol + " pacote fora de ordem #" + m.seq + " (maior visto: #" + m.highestSeenSeq + ")", "warn"];
+    },
+    Suppressed: function (m) { return [m.count + " eventos de perda/reordenação omitidos (limite de taxa)", "info"]; }
+  };
+
+  // ---- conexão SSE ----
+  var es = new EventSource("/events");
+  es.onopen = function () { $("conn").textContent = "conectado"; $("conn").className = "ok"; };
+  es.onerror = function () { $("conn").textContent = "reconectando…"; $("conn").className = "bad"; };
+
+  Object.keys(handlers).forEach(function (type) {
+    es.addEventListener(type, function (e) {
+      var m;
+      try { m = JSON.parse(e.data); } catch (err) { return; }
+      var line = handlers[type](m);
+      if (line) addTimeline(m, line[0], line[1]);
+    });
+  });
+
+  drawChart();
+})();
+</script>
+</body>
+</html>
