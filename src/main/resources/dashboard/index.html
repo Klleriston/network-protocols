@@ -121,9 +121,17 @@
     FIELDS.forEach(function (f) { c[f[0]].dd.textContent = f[2](m[f[0]]); });
     var show = m.droppedEvents > 0;
     c.droppedEvents.dt.hidden = c.droppedEvents.dd.hidden = !show;
-    var h = history[m.protocol];
-    h.push(m.rttAvgMicros);
-    if (h.length > MAX_POINTS) h.shift();
+    // sem echo ainda, o RTT médio é 0: não desenha uma linha falsa no zero
+    if (m.echoed > 0) {
+      var h = history[m.protocol];
+      h.push(m.rttAvgMicros);
+      if (h.length > MAX_POINTS) h.shift();
+    }
+    drawChart();
+  }
+
+  function clearHistory() {
+    history.TCP = []; history.UDP = [];
     drawChart();
   }
 
@@ -176,7 +184,9 @@
   }
   window.addEventListener("resize", drawChart);
   if (window.matchMedia) {
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawChart);
+    var scheme = window.matchMedia("(prefers-color-scheme: dark)");
+    if (scheme.addEventListener) scheme.addEventListener("change", drawChart);
+    else if (scheme.addListener) scheme.addListener(drawChart); // Safari < 14
   }
 
   // ---- linha do tempo ----
@@ -215,6 +225,7 @@
     MetricsSnapshot: function (m) { onSnapshot(m); return null; },
     ExperimentStarted: function (m) {
       t0 = m.timestampNanos;
+      clearHistory();
       setExperiment(m.name); setState("running", "rodando…", "");
       return ["experimento iniciado: " + m.name, "ok"];
     },
