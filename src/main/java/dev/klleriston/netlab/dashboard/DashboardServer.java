@@ -182,6 +182,8 @@ public final class DashboardServer implements AutoCloseable {
                 exchange.getResponseHeaders().set("Cache-Control", "no-cache");
                 exchange.sendResponseHeaders(200, 0);
                 out = exchange.getResponseBody();
+                // JDKs recentes seguram os headers até o primeiro flush; sem isto o cliente espera o 1º evento
+                out.flush();
                 for (Event e : new Event[] {latestTcp, latestUdp, latestImpairment}) {
                     if (e != null) write(SseFormat.format(e).getBytes(StandardCharsets.UTF_8));
                 }
