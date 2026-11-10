@@ -61,6 +61,12 @@ public final class Events {
         public String toJson() { return head(this).field("remote", remote).build(); }
     }
 
+    /** Troca UDP completa (datagrama e echo), sem handshake; publicada pelo roteiro do ciclo de vida. */
+    public record UdpExchange(long timestampNanos, String remote, long rttMicros) implements Event {
+        public Protocol protocol() { return Protocol.UDP; }
+        public String toJson() { return head(this).field("remote", remote).field("rttMicros", rttMicros).build(); }
+    }
+
     public record PacketSent(long timestampNanos, Protocol protocol, long seq, int bytes) implements Event {
         public String toJson() { return head(this).field("seq", seq).field("bytes", bytes).build(); }
     }

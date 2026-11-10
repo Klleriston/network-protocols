@@ -81,8 +81,9 @@ public final class LifecycleExperiment implements Experiment {
             }
             TestMessage echo = MessageCodec.decode(buf, 0, in.getLength());
             long now = ctx.now();
-            ctx.bus().publish(new Events.PacketEchoed(now, Protocol.UDP, echo.seq(), now - echo.sentAtNanos(),
-                    in.getLength()));
+            long rttNanos = now - echo.sentAtNanos();
+            ctx.bus().publish(new Events.PacketEchoed(now, Protocol.UDP, echo.seq(), rttNanos, in.getLength()));
+            ctx.bus().publish(new Events.UdpExchange(now, ctx.target().udpRemote(), rttNanos / 1_000));
         }
     }
 

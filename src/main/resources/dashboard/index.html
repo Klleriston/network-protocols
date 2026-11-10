@@ -245,6 +245,9 @@
     ConnectionReset: function (m) { return [m.protocol + " conexão resetada (RST) por " + m.remote, "warn"]; },
     ConnectionRefused: function (m) { return [m.protocol + " conexão recusada por " + m.remote, "bad"]; },
     ConnectTimeout: function (m) { return [m.protocol + " tempo esgotado ao conectar em " + m.remote, "bad"]; },
+    UdpExchange: function (m) {
+      return ["UDP: datagrama ecoado sem handshake (RTT " + fmtMicros(m.rttMicros) + ")", "ok"];
+    },
     UdpPortUnreachable: function (m) { return ["UDP porta inalcançável em " + m.remote + " (ICMP)", "bad"]; },
     PacketLost: function (m) { return [m.protocol + " pacote perdido #" + m.seq, "warn"]; },
     PacketReordered: function (m) {

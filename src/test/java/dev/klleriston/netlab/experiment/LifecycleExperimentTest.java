@@ -57,6 +57,8 @@ class LifecycleExperimentTest {
                 e -> e instanceof Events.ConnectionRefused r && r.protocol() == Protocol.TCP
                         && r.remote().equals("127.0.0.1:" + closed),
                 e -> e instanceof Events.PacketEchoed p && p.protocol() == Protocol.UDP,
+                e -> e instanceof Events.UdpExchange x && x.remote().equals(lab.target().udpRemote())
+                        && x.rttMicros() >= 0,
                 e -> e instanceof Events.ExperimentFinished);
         int i = 0;
         for (Event e : events) {
