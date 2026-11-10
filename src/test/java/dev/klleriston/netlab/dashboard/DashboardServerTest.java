@@ -125,6 +125,17 @@ class DashboardServerTest {
     }
 
     @Test
+    void indexWiresEventSourceAndBothProtocolCards() throws Exception {
+        HttpResponse<String> resp = http.send(
+                HttpRequest.newBuilder(uri("/")).timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        for (String expected : new String[] {"new EventSource(\"/events\")", "id=\"card-tcp\"",
+                "id=\"card-udp\"", "id=\"rtt-chart\"", "id=\"timeline\"", "id=\"impairment\""}) {
+            assertTrue(resp.body().contains(expected), "missing " + expected);
+        }
+    }
+
+    @Test
     void unknownPathIs404AndNonGetIs405() throws Exception {
         HttpResponse<String> notFound = http.send(
                 HttpRequest.newBuilder(uri("/nada")).timeout(Duration.ofSeconds(5)).build(),
