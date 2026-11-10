@@ -89,8 +89,7 @@ public final class ThroughputExperiment implements Experiment {
             long end = System.nanoTime();
             session.close(); // desbloqueia o leitor
             reader.join();
-            double seconds = Math.max(end - start, 1) / 1e9;
-            return echoed.get() * (double) size * 8 / seconds / 1e6;
+            return mbps(echoed.get(), size, Math.max(end - start, 1));
         }
     }
 
@@ -98,7 +97,8 @@ public final class ThroughputExperiment implements Experiment {
     private static double[] runUdp(ExperimentContext ctx, long phaseNanos, int size, long rate) throws Exception {
         try (UdpEchoSession udp = new UdpEchoSession(ctx, ctx.openUdp(), LOSS_TIMEOUT)) {
             udp.start();
-            double nanosPerPacket = size * 8.0 * 1e9 / rate;
+            // a taxa alvo conta o datagrama inteiro (cabeçalho + payload), como a vazão entregue
+            double nanosPerPacket = frameBytes(size) * 8.0 * 1e9 / rate;
             long sent = 0;
             long start = System.nanoTime();
             boolean last = false;
@@ -121,10 +121,22 @@ public final class ThroughputExperiment implements Experiment {
             long sendNanos = Math.max(System.nanoTime() - start, 1);
             if (ctx.cancelled()) return new double[] {0, 0};
             udp.awaitDrained(drainWait(ctx.impairment()));
-            double delivered = udp.echoed() * (double) size * 8 / (sendNanos / 1e9) / 1e6;
+            double delivered = mbps(udp.echoed(), size, sendNanos);
             double loss = sent == 0 ? 0 : udp.lost() * 100.0 / sent;
             return new double[] {delivered, loss};
         }
+    }
+
+    /**
+     * Vazão em Mbit/s de {@code frames} mensagens com {@code payloadSize} bytes de payload em {@code nanos};
+     * conta os bytes codificados (cabeçalho + payload), os mesmos do {@code PacketEchoed} que o painel soma.
+     */
+    static double mbps(long frames, int payloadSize, long nanos) {
+        return frames * (double) frameBytes(payloadSize) * 8 / (nanos / 1e9) / 1e6;
+    }
+
+    private static int frameBytes(int payloadSize) {
+        return payloadSize + TestMessage.HEADER_BYTES;
     }
 
     /** Timeout de perda + atraso + jitter + retenção de reordenação + 1 s de folga. */
