@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Converte uma linha do prompt em {@link Command}. */
 public final class CommandParser {
@@ -18,14 +19,48 @@ public final class CommandParser {
 
     private static final Set<String> IMPAIR_KEYS = Set.of("loss", "delay", "jitter", "reorder");
 
-    private final Set<String> experiments;
+    /** Parâmetro aceito por um experimento, com o padrão mostrado no help. */
+    record Param(String key, String defaultValue) { }
+
+    /** Experimento conhecido: nome, parâmetros aceitos e descrição do help. */
+    record Spec(String name, List<Param> params, String description) {
+        String paramList() {
+            return String.join(" ", params.stream().map(p -> p.key() + "=" + p.defaultValue()).toList());
+        }
+
+        Set<String> keys() {
+            return params.stream().map(Param::key).collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+    }
+
+    /** Tabela única de experimentos: valida o {@code run} e gera o {@code help}. */
+    static final List<Spec> EXPERIMENTS = List.of(
+            new Spec("lifecycle", List.of(new Param("closed-port", "7999")),
+                    "handshake, FIN, RST, porta fechada (TCP e UDP)"),
+            new Spec("reliability", List.of(new Param("count", "1000"), new Param("rate", "200")),
+                    "mensagens numeradas por TCP e UDP: entregues, perdidas, reordenadas"),
+            new Spec("latency", List.of(new Param("samples", "200"), new Param("nagle", "off"),
+                    new Param("size", "64")),
+                    "ping-pong TCP e UDP: RTT e jitter (nagle=on desliga TCP_NODELAY)"),
+            new Spec("throughput", List.of(new Param("seconds", "10"), new Param("udp-rate", "20mbps"),
+                    new Param("size", "1200")),
+                    "TCP contínuo e UDP a taxa fixa: vazão e perda acima da capacidade"));
+
+    private final Map<String, Spec> experiments = new LinkedHashMap<>();
     private final String runUsage;
 
-    /** {@code experimentNames} na ordem em que aparecem nas mensagens de uso. */
+    /**
+     * Aceita os experimentos de {@code experimentNames}, na ordem em que aparecem nas mensagens de uso;
+     * cada nome precisa estar em {@link #EXPERIMENTS}.
+     */
     public CommandParser(Set<String> experimentNames) {
-        this.experiments = new LinkedHashSet<>(experimentNames);
+        for (String name : experimentNames) {
+            Spec spec = EXPERIMENTS.stream().filter(s -> s.name().equals(name)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("experimento sem parâmetros definidos: " + name));
+            experiments.put(name, spec);
+        }
         this.runUsage = "uso: run <experimento> [chave=valor ...] — experimentos: "
-                + String.join(", ", experiments);
+                + String.join(", ", experiments.keySet());
     }
 
     public Command parse(String line) throws CommandException {
@@ -47,7 +82,7 @@ public final class CommandParser {
 
     /** Texto do comando {@code help}: comandos, experimentos, parâmetros e padrões. */
     public static String helpText() {
-        return """
+        StringBuilder sb = new StringBuilder("""
                 Comandos:
                   run <experimento> [chave=valor ...]   inicia um experimento (um por vez)
                   impair loss=<0-100> delay=<ms> jitter=<ms> reorder=<0-100>
@@ -58,24 +93,28 @@ public final class CommandParser {
                   help                                   mostra esta ajuda
                   quit                                   encerra o cliente
 
-                Experimentos (parâmetros e padrões):
-                  lifecycle     closed-port=7999
-                                handshake, FIN, RST, porta fechada (TCP e UDP)
-                  reliability   count=1000 rate=200
-                                mensagens numeradas por TCP e UDP: entregues, perdidas, reordenadas
-                  latency       samples=200 nagle=off size=64
-                                ping-pong TCP e UDP: RTT e jitter (nagle=on desliga TCP_NODELAY)
-                  throughput    seconds=10 udp-rate=20mbps size=1200
-                                TCP contínuo e UDP a taxa fixa: vazão e perda acima da capacidade""";
+                Experimentos (parâmetros e padrões):""");
+        for (Spec spec : EXPERIMENTS) {
+            sb.append(String.format("%n  %-13s %s%n  %-13s %s", spec.name(), spec.paramList(), "", spec.description()));
+        }
+        return sb.toString();
     }
 
     private Command run(List<String> args) throws CommandException {
         if (args.isEmpty()) throw new CommandException(runUsage);
         String experiment = args.get(0);
-        if (!experiments.contains(experiment)) {
+        Spec spec = experiments.get(experiment);
+        if (spec == null) {
             throw new CommandException("experimento desconhecido: " + experiment + "\n" + runUsage);
         }
-        return new Command.Run(experiment, keyValues(args.subList(1, args.size()), runUsage));
+        Map<String, String> params = keyValues(args.subList(1, args.size()), runUsage);
+        for (String key : params.keySet()) {
+            if (!spec.keys().contains(key)) {
+                throw new CommandException("parâmetro desconhecido para " + experiment + ": " + key
+                        + "\nparâmetros de " + experiment + ": " + spec.paramList() + "\n" + runUsage);
+            }
+        }
+        return new Command.Run(experiment, params);
     }
 
     private static Command impair(List<String> args) throws CommandException {

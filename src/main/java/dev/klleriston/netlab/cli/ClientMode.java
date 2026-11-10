@@ -34,7 +34,7 @@ public final class ClientMode {
 
     private static final String PROMPT = "netlab> ";
     private static final Duration STOP_WAIT = Duration.ofSeconds(2);
-    private static final long PRINTER_DRAIN_MS = 1000;
+    private static final long PRINTER_DRAIN_MS = 5000;
 
     private final Args.ClientArgs args;
     private final InputStream in;

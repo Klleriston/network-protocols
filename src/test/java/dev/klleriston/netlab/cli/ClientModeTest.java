@@ -93,6 +93,20 @@ class ClientModeTest {
         assertTrue(session.output().contains("ExperimentAborted"), session.output());
     }
 
+    @Test
+    void interruptStopsOnlyOncePerRun() throws Exception {
+        session.awaitOutput("Painel: http://");
+        assertFalse(session.mode.interruptExperiment(), "ocioso: nada a interromper");
+        session.send("run reliability count=1000 rate=10\n");
+        session.awaitOutput("ExperimentStarted");
+        assertTrue(session.mode.interruptExperiment(), "primeiro Ctrl+C interrompe o run");
+        assertFalse(session.mode.interruptExperiment(), "segundo Ctrl+C com stop pendente encerra o cliente");
+        session.awaitOutput("ExperimentAborted");
+        assertFalse(session.mode.interruptExperiment(), "ocioso depois do abort");
+        session.send("quit\n");
+        session.awaitExit();
+    }
+
     private static int closedPort() throws IOException {
         try (ServerSocket s = new ServerSocket(0)) {
             return s.getLocalPort();
@@ -106,11 +120,12 @@ class ClientModeTest {
         private final ByteArrayOutputStream captured = new ByteArrayOutputStream();
         private final AtomicReference<Throwable> failure = new AtomicReference<>();
         private final Thread thread;
+        final ClientMode mode;
 
         Session(Args.ClientArgs args) throws IOException {
             PipedInputStream in = new PipedInputStream(input, 64 * 1024);
             PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8);
-            ClientMode mode = new ClientMode(args, in, out);
+            mode = new ClientMode(args, in, out);
             thread = Thread.ofPlatform().name("client-mode").start(() -> {
                 try {
                     mode.run();
