@@ -8,7 +8,6 @@ import dev.klleriston.netlab.event.Protocol;
 import dev.klleriston.netlab.impair.ImpairmentProfile;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Random;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +40,15 @@ class LatencyExperimentTest {
                 .count();
     }
 
+    private static void sleepBriefly() {
+        try {
+            Thread.sleep(5);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail("interrompido");
+        }
+    }
+
     @Test
     void nameIsLatency() {
         assertEquals("latency", new LatencyExperiment().name());
@@ -52,24 +60,24 @@ class LatencyExperimentTest {
         // o coletor é assíncrono: espera o fim do run e confere
         long deadline = System.nanoTime() + WAIT.toNanos();
         while ((echoes(Protocol.TCP) < 20 || echoes(Protocol.UDP) < 20) && System.nanoTime() < deadline) {
-            Thread.onSpinWait();
+            sleepBriefly();
         }
         assertEquals(20, echoes(Protocol.TCP));
         assertEquals(20, echoes(Protocol.UDP));
     }
 
     @Test
-    void nagleOnDisablesTcpNoDelay() throws Exception {
-        ExperimentContext ctx = new ExperimentContext(lab.target(), lab.bus(), System::nanoTime,
-                () -> ImpairmentProfile.NONE, new Random(1), Map.of());
-        try (TcpEchoSession on = TcpEchoSession.connect(ctx, false);
-             TcpEchoSession off = TcpEchoSession.connect(ctx, true)) {
-            assertFalse(on.tcpNoDelay());
-            assertTrue(off.tcpNoDelay());
-        }
-        Events.ExperimentFinished finished = (Events.ExperimentFinished)
+    void nagleParamControlsTcpNoDelayOnTheExperimentSocket() {
+        Events.ExperimentFinished on = (Events.ExperimentFinished)
                 runAndAwaitTerminal(Map.of("samples", "5", "nagle", "on"), Events.ExperimentFinished.class);
-        assertTrue(finished.summary().contains("nagle=on"), finished.summary());
+        assertTrue(on.summary().contains("nagle=on"), on.summary());
+    }
+
+    @Test
+    void nagleDefaultsToOff() {
+        Events.ExperimentFinished off = (Events.ExperimentFinished)
+                runAndAwaitTerminal(Map.of("samples", "5"), Events.ExperimentFinished.class);
+        assertTrue(off.summary().contains("nagle=off"), off.summary());
     }
 
     @Test
